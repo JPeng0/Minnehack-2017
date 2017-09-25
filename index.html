@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<!--
+ * Hackathon Code, Minnehack2017
+-->
+<!--
+ * Hackathon Code, Minnehack2017
+ *
+ * Created by Justin Herr, Alex Hoff, Noah Lebovic, and John Peng with heavy reliance on walkthroughs.
+ * 
+ * I wouldn't recommend copying this style :P
+-->
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            background-color: #333;
+            color: #fff;
+            font-family: 'Roboto', 'Open Sans', 'Lucida Grande', sans-serif;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+        wrapper {
+            margin: 100 auto;
+        }
+    </style>
+</head>
+<div id = "wrapper">
+    <title>Strangr</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <body>
+
+    <center>
+        <header class="w3-container w3-red" style="color:lightblue">
+            <h1>Strangr</h1>
+        </header>
+        <p id="subTitle"></p>
+        
+        <div id="remotes">
+            <div class="videoContainer" style="position: absolute; right: 0; bottom: 0;">
+            <video id="localVideo" style="height: 25vh;" oncontextmenu="return false;"></video>
+            <div id="localVolume" class="volume_bar"></div>
+        </div>
+        </div>
+        <img src="next.svg" id="nextImage" onclick="nextAction()" style="height:10vh; padding-top:5vh; opacity:0.0"></img>
+        <h2 id="waitingText"><b>Finding you someone to connect with...</b></h2>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.0/jquery.min.js"></script>
+        <script src="simplewebrtc.bundle.js"></script>
+        <a id="text" href = room.txt></a>
+        <script>
+            var room = 1;
+            var myName = 'LOADING';
+            var otherName = 'nobody';
+            var otherNameRead = 'Bollocks';
+            var nextTimer = setInterval(function(){ nextAction() }, 10000);
+            //Mark started
+            var randName = Math.floor((1+Math.random())*10000);
+            console.log('Key changing');
+            var key = Math.floor((1+Math.random())*10000)
+            function readTextFile(file, naming)
+            {
+                var rawFile = new XMLHttpRequest();
+                rawFile.open("GET", file, false);
+                rawFile.onreadystatechange = function ()
+                {
+                    if(rawFile.readyState === 4)
+                    {
+                        if(rawFile.status === 200 || rawFile.status == 0)
+                        {
+                            var allText = rawFile.responseText;
+                            if (naming){
+                                document.getElementById('subTitle').innerHTML = 'You are connected to ' + allText;
+                                otherName = allText;
+                            }
+                            else{
+                                room = allText;
+                                key = allText;
+                            }  
+                            
+                            return allText;
+                        }
+                    }
+                }
+                rawFile.send(null);
+            }
+             
+
+
+            // grab the room from the URL
+            var room = location.search && location.search.split('?')[1];
+            myName = window.getCookie("username");
+            data = readTextFile("rooms.php?name=" + myName + "&key=" + key.toString(), false);
+
+            // create our webrtc connection
+            var webrtc = new SimpleWebRTC({
+                // the id/element dom element that will hold "our" video
+                localVideoEl: 'localVideo',
+                // the id/element dom element that will hold remote videos
+                remoteVideosEl: '',
+                // immediately ask for camera access
+                autoRequestMedia: true,
+                debug: false,
+                detectSpeakingEvents: true
+            });
+            // when it's ready, join if we got a room from the URL
+            webrtc.on('readyToCall', function () {
+                // you can name it anything
+                if (room) webrtc.joinRoom(room);
+            });
+
+            function showVolume(el, volume) {
+                if (!el) return;
+                if (volume < -45) { // vary between -45 and -20
+                    el.style.height = '0px';
+                } else if (volume > -20) {
+                    el.style.height = '100%';
+                } else {
+                    el.style.height = '' + Math.floor((volume + 100) * 100 / 25 - 220) + '%';
+                }
+            }
+            webrtc.on('channelMessage', function (peer, label, data) {
+                if (data.type == 'volume') {
+                    showVolume(document.getElementById('volume_' + peer.id), data.volume);
+                }
+            });
+            webrtc.on('videoAdded', function (video, peer) {
+                clearInterval(nextTimer);
+                console.log('video added', peer);
+                var remotes = document.getElementById('remotes');
+                if (remotes) {
+                    var d = document.createElement('div');
+                    d.className = 'videoContainer';
+                    d.id = 'container_' + webrtc.getDomId(peer);
+                    d.appendChild(video);
+                    var vol = document.createElement('div');
+                    vol.id = 'volume_' + peer.id;
+                    vol.className = 'volume_bar';
+                    video.onclick = function () {
+                        video.style.width = '500px';
+                        video.style.height = '500px';
+                    };
+                    d.appendChild(vol);
+                    remotes.appendChild(d);
+                    //Mark started
+                    myName = window.getCookie("username");
+                    readTextFile("name.php?name=" + myName + "&key=" + key.toString(), true);
+                    document.getElementById('nextImage').style.opacity = "1.0";
+                    document.getElementById('waitingText').style.opacity = "0.0";
+                }
+            });
+            webrtc.on('videoRemoved', function (video, peer) {
+                console.log('video removed ', peer);
+                var remotes = document.getElementById('remotes');
+                var el = document.getElementById('container_' + webrtc.getDomId(peer));
+                if (remotes && el) {
+                    remotes.removeChild(el);
+                }
+                document.getElementById('nextImage').style.opacity = "0.0";
+                document.getElementById('waitingText').style.opacity = "1.0";
+                nextAction();
+            });
+            function nextAction(){
+                window.location.reload();
+            }
+            webrtc.on('volumeChange', function (volume, treshold) {
+                showVolume(document.getElementById('localVolume'), volume);
+            });
+
+            // Since we use this twice we put it here
+            function setRoom(name) {
+                $('form').remove();
+                $('body').addClass('active');
+            }
+
+            if (room) {
+                setRoom(room);
+            } else {
+                $('form').submit(function () {
+                    var val = $('#sessionInput').val().toLowerCase().replace(/\s/g, '-').replace(/[^A-Za-z0-9_\-]/g, '');
+                    webrtc.createRoom(val, function (err, name) {
+                        console.log(' create room cb', arguments);
+                    
+                        var newUrl = location.pathname + '?' + name;
+                        if (!err) {
+                            history.replaceState({foo: 'bar'}, null, newUrl);
+                            setRoom(name);
+                        } else {
+                            console.log(err);
+                        }
+                    });
+                    return false;          
+                });
+            }
+
+            var button = $('#screenShareButton'),
+                setButton = function (bool) {
+                    button.text(bool ? 'share screen' : 'stop sharing');
+                };
+            webrtc.on('localScreenStopped', function () {
+                setButton(true);
+            });
+
+            setButton(true);
+
+            button.click(function () {
+                if (webrtc.getLocalScreen()) {
+                    webrtc.stopScreenShare();
+                    setButton(true);
+                } else {
+                    webrtc.shareScreen(function (err) {
+                        if (err) {
+                            setButton(true);
+                        } else {
+                            setButton(false);
+                        }
+                    });
+                    
+                }
+            });
+
+            //From stackoverflow
+            function getCookie(name) {
+                match = document.cookie.match(new RegExp(name + '=([^;]+)'));
+                if (match) return match[1];
+            }
+        </script>
+    </center>
+
+    <!--
+    This is a modified version of the Facebook login api
+    quickstart tutorial.
+     -->
+    <script>
+        function statusChangeCallback(response) {
+            console.log('statusChangeCallback');
+            console.log(response);
+            if (response.status === 'connected') {
+                // Logged into your app and Facebook.
+                testAPI();
+            } else if (response.status === 'not_authorized') {
+                // The person is logged into Facebook, but not your app.
+                document.getElementById('status').innerHTML = 'Please log ' +
+                   'into this app.';
+                window.location = "https://noahlebovic.com/minnehack-2017/login.html";
+            } else {
+                // The person is not logged into Facebook, so we're not sure if
+                // they are logged into this app or not.
+                document.getElementById('status').innerHTML = 'Please log ' +
+                  'into Facebook.';
+                window.location = "https://noahlebovic.com/minnehack-2017/login.html";
+            }
+        }
+
+        // This function is called when someone finishes with the Login
+        // Button.  See the onlogin handler attached to it in the sample
+        // code below.
+        function checkLoginState() {
+            FB.getLoginStatus(function(response) {
+                statusChangeCallback(response);
+            });
+        }
+
+        window.fbAsyncInit = function() {
+            FB.init({
+                appId      : '1282037201888353',
+                cookie     : true,  // enable cookies to allow the server to access
+                // the session
+                xfbml      : true,  // parse social plugins on this page
+                version    : 'v2.8' // use graph api version 2.8
+            });
+
+            // Now that we've initialized the JavaScript SDK, we call
+            // FB.getLoginStatus().  This function gets the state of the
+            // person visiting this page and can return one of three states to
+            // the callback you provide.  They can be:
+            //
+            // 1. Logged into your app ('connected')
+            // 2. Logged into Facebook, but not your app ('not_authorized')
+            // 3. Not logged into Facebook and can't tell if they are logged into
+            //    your app or not.
+            //
+            // These three cases are handled in the callback function.
+
+            FB.getLoginStatus(function(response) {
+                statusChangeCallback(response);
+            });
+
+        };
+
+        // Load the SDK asynchronously
+        (function(d, s, id) {
+            var js, fjs = d.getElementsByTagName(s)[0];
+            if (d.getElementById(id)) return;
+            js = d.createElement(s); js.id = id;
+            js.src = "//connect.facebook.net/en_US/sdk.js";
+            fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'facebook-jssdk'));
+
+        // Here we run a very simple test of the Graph API after login is
+        // successful.  See statusChangeCallback() for when this call is made.
+        function testAPI() {
+            console.log('Welcome!  Fetching your information.... ');
+            FB.api('/me', function(response) {
+                console.log('Successful login for: ' + response.name);
+                document.getElementById('status').innerHTML =
+                    'You are logged in as ' + getCookie("username") + '!';
+                myName = response.name;
+                var fullName = response.name;
+                document.cookie = "username=" + fullName.substr(0,fullName.indexOf(' '));
+            });
+        }
+    </script>
+
+    <div id="status" style="position: absolute; left:0; bottom: 0; padding-bottom: 4px; padding-left: 4px;">
+    </div>
+
+    </body>
+</html> 
